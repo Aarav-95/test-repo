@@ -1,108 +1,126 @@
-# 🛠️ Developer Trace Ingestion and Quality Judge MVP
+### Project Plan
 
-[cite_start]This project aims to capture, ingest, and evaluate developer debugging sessions (traces) to generate high-quality data for training AI agents[cite: 1].
+## Questions:
+1. How is a developer’s chain of thought reasoning captured? Does the developer have a separate notes tab to log their reasoning, or do we infer it from any issues they may be encountering?
 
----
+2. What is the target scope and complexity of the bugs in the codebase? Does the agent need to be trained for looking for small, contained bugs limited to a singular file or multi-file, complex fixes?
 
-## 🚀 Minimum Viable Product (MVP)
+3. How complex does each action in the data need to be? Will it include every keystroke completed by the user or general, higher-level data?
 
-[cite_start]The MVP is focused on an **end-to-end flow** for ingesting a complete debugging trace and processing it through an automated quality judge[cite: 97].
+4. What will signify a high-quality trace? Are we prioritizing speed and efficiency to get to the solution, or do you care more about the methodology, even if it means sacrificing speed and exploring dead ends?
 
-### Core Features
+## Assumptions:
+1. Chain-of-Thought is explicitly captured through the custom IDE using a logging tool. The schema will include this explicitly since inferring what the developer is thinking is far more complex than the scope of this project.
 
-* [cite_start]**Trace Ingestion:** The client will **upload the entire JSON trace at the end** of the session[cite: 98].
-* [cite_start]**Data Storage:** The trace will be saved to a **PostgreSQL JSONB column**[cite: 99].
-* **Automated Quality Judge:** A background worker service will process the trace to:
-    * [cite_start]**Validate Code Fix:** Successfully **clone the repo**, **apply the `final_code_diff`**, and **run the repo's test suite** in a Docker container, updating `tests_passed`[cite: 100, 101].
-    * [cite_start]**AI Methodology Score:** Call **Gemini 2.5 Flash** with a simple prompt based on the **"methodology over speed"** assumption and store a numeric score[cite: 102, 103, 15, 16].
+2. Higher-level events are sufficient instead of every individual keystroke, as it may cause the training data to be overly ambiguous.
 
-### Deployment & Setup
+3. Smaller-scale and contained bugs are targeted, as larger-scale fixes may require a long time to fix, allowing the MVP to be focused on single-session traces.
 
-* [cite_start]A **`docker-compose.yml`** will boot the API, worker, Postgres, and Redis with a single `docker-compose up` command[cite: 104].
-* [cite_start]The `README.md` will contain this plan and **clear run instructions**, including one end-to-end example to demonstrate the entire flow[cite: 105].
+4. The AI judge values the methodology greater than speed so that the entire debugging process can be properly captured, providing more human-like data to train the agent.
 
----
+# JSON Schema:
+```
+{
+  "trace_id": "uuid-v4-string",
+  "developer_id": "user-string-or-uuid",
+  "task_id": "bug-ticket-id-string",
+  "task_description": "The full text of the bug report.",
+  "repo_url": "https://github.com/example/repo.git",
+  "repo_commit_hash": "sha-string-at-start",
+  "start_timestamp": "2025-10-29 T16:00:00Z",
+  "end_timestamp": "2025-10-29 T18:00:00Z",
+  “Final_code_diff”: “...”
+  "events": [
+    {
+      "event_id": "uuid-v4-string",
+      "timestamp": "2025-10-29 T16:05:10Z",
+      "event_type": "thought_log",
+      "payload": {
+        "thought_text": "..."
+      }
+    },
+    {
+      "event_id": "uuid-v4-string",
+      "timestamp_iso": "2025-10-29 T16:06:25Z",
+      "event_type": "file_edit",
+      "payload": {
+        "file_path": "example/path",
+        "content_diff": “...”
+    },
+    {
+      "event_id": "uuid-v4-string",
+      "timestamp_iso": "2025-10-29 T16:07:00Z",
+      "event_type": "command_run",
+      "payload": {
+        "command_text": "example command",
+        "working_directory": "example/dir",
+        "exit_code": 1,
+        "stdout": "...",
+        "stderr": "...'"
+      }
+    },
+    {
+      "event_id": "uuid-v4-string",
+      "timestamp_iso": "2025-10-29 T16:07:15Z",
+      "event_type": "thought_log",
+      "payload": {
+        "thought_text": "..."
+      }
+    }
+  ],
+  "qa_results": null
+}
+```
+# Rationale: 
 
-## 📝 Project Assumptions & Scope Decisions
+Root Object: Includes metadata and information about the entire session that helps differentiate between sessions, such as timestamp start and end, task description, GitHub link, etc. It also includes a qa results section that can be filled when the AI judge gives it a ranking
 
-These decisions define the scope and quality standards for the project:
+Events Array: Since this is time-series data, the data needs to be sorted in chronological order, which is best displayed in an array. The array includes each specific event, whether that is a preliminary reasoning thought, a command executed, etc.
 
-| Question | Answer / Assumption | Rationale / Detail |
-| :--- | :--- | :--- |
-| [cite_start]**How is CoT reasoning captured?** [cite: 3] | [cite_start]**Explicitly captured** through the custom IDE using a logging tool[cite: 11]. | [cite_start]The schema will explicitly include the chain-of-thought, as inferring the developer's thought process is too complex for this project's scope[cite: 11, 12]. |
-| [cite_start]**Target scope of bugs?** [cite: 5] | [cite_start]**Smaller-scale and contained bugs**[cite: 14]. | [cite_start]Larger-scale fixes may take too long, allowing the MVP to focus on single-session traces[cite: 14]. |
-| [cite_start]**Complexity of action data?** [cite: 7] | [cite_start]**Higher-level events** are sufficient[cite: 13]. | [cite_start]Including every keystroke may cause the training data to be overly ambiguous[cite: 13]. |
-| [cite_start]**What signifies a high-quality trace?** [cite: 9] | [cite_start]**Methodology is valued greater than speed**[cite: 15]. | [cite_start]This ensures the entire debugging process is properly captured, providing more human-like data to train the agent[cite: 16]. |
+Inside Event:
+   Timestamp: to display when a certain action has taken place, allowing for chronological order
+   Event Type: dictates the type of event that is occurring at that moment
+      - This is important since each event will have a different set of schema needing to be filled
+   Payload: depending on the type, each payload will include the specific data that we need to capture
+      - Ex. stdin, stdout, stderr for command runs
 
----
+## High-Level Technical Plan:
 
-## 📐 High-Level Technical Plan
+# Architecture:
 
-### [cite_start]Architecture [cite: 78]
+Ingestion API: One POST endpoint will be exposed, in which the client will send the entire JSON to it
 
-1.  [cite_start]**Ingestion API:** A single **POST endpoint** is exposed to receive the entire JSON trace from the client[cite: 79].
-2.  [cite_start]**Validation:** The API validates the JSON against the defined schema[cite: 80].
-3.  **Queuing:**
-    * [cite_start]The API saves the valid trace to the **PostgreSQL DB** and changes `qa_results.status` to `pending`[cite: 81].
-    * [cite_start]The `trace_id` is pushed to a **Redis message queue**[cite: 82].
-    * [cite_start]The API returns a `202 status`, confirming receipt and pending processing[cite: 83, 84].
-4.  **QA Judge Worker:**
-    * [cite_start]A separate **Python service** continuously listens to the messaging queue[cite: 87].
-    * [cite_start]It runs **PR validation** by cloning the repo, applying the `final_code_diff`, and running tests[cite: 88].
-    * [cite_start]It runs the **AI quality judge** by sending the developers' thoughts through an LLM API[cite: 89].
+Validation: Validate the entire JSON with the schema defined previously
 
-### [cite_start]Technology Stack [cite: 86]
+Queuing:
+   - API saves the valid trace to the PostgreSQL DB and change qa_results.status to pending
+   - The trace id will get pushed to a Redis message queue
+   - The API then returns a 202 status, confirming that the trace was received and needs to be processed
 
-| Component | Technology | Rationale |
-| :--- | :--- | :--- |
-| **Language** | [cite_start]**Python** [cite: 91] | [cite_start]Standard for AI and data processing, supports many useful libraries[cite: 91]. |
-| **API** | [cite_start]**Fast API** [cite: 92] | [cite_start]A high-performance framework that is easy to use and has good data validation[cite: 92]. |
-| **Database** | [cite_start]**PostgreSQL** [cite: 93] | [cite_start]JSONB support allows us to store half-structured traces while having lots of SQL queries available[cite: 93]. |
-| **Queue** | [cite_start]**Redis** [cite: 94] | Very lightweight and fast for delivering messages. [cite_start]We can utilize the **RQ library** from Python[cite: 94, 95]. |
-| **AI LLM** | [cite_start]**Gemini 2.5 Flash** [cite: 90] | [cite_start]Does not need a large amount of reasoning for this task; basic summarization and understanding are enough, allowing for cost savings[cite: 90]. |
+QA Judge:
+- A separate Python service is continuously listening to the messaging queue
+- It runs the AI quality judge by taking in all the developers’ thoughts and sending it through to an LLM API
+- GPT-5-nano can be used for this since we do not need a large amount of reasoning for this task, basic summarization, and understanding of the text is enough and will allow for cost savings
 
----
+# Tech Stack:
+Language: Python – Standard for AI and data processing, supports many useful libraries
+API: Fast API – A high-performance framework that is easy to use and has good data validation
+Database: PostgreSQL – JSONB support allows us to store half-structured traces while also having lots of SQL queries at our disposal
+Queue: Redis – Redis is very lightweight and fast for delivering messages. We can utilize the RQ library from Python for this
 
-## 💾 JSON Schema Overview
+## Scope & Trade-Offs:
 
-The schema is structured to capture all session metadata and a time-series of developer actions and thoughts.
+# MVP:
+- Upload the entire JSON trace at the end
+- Trace will be saved to a PostgreSQL JSONB column
+- The worker will call Gemini 2.5 Flash with a simple prompt based on our "methodology over speed" assumption and store a numeric score
+- A docker-compose.yml that boots the API, worker, Postgres, and Redis with a single docker-compose up command.
+- The README.md will contain this plan and clear run instructions, including one end-to-end example to demonstrate the entire flow
 
-### Root Object (Metadata)
+# Nice-to-Haves:
+- Incremental Ingestion: This adds significant complexity to the MVP, as we would need to handle event ordering and session management
+- Advanced AI Rubric: Instead of a simple score, a more advanced system could include a rubric with greater detail (Ex. Clarity, Debugging Skills, etc.)
+- Authentication: The API will be open for anyone to use in this prototype, but ideally, an authentication mechanism would be implemented so that a random person cannot access the API keys and data pipeline
+- Git Actions Testing: Cloning the repo and dockerizing a test suite would be ideal; however, with the time frame given, it is not necessary, as the most important part of the data is its quality of the thought process
 
-[cite_start]Includes metadata and information about the entire session that helps differentiate between sessions[cite: 67]:
-* [cite_start]`trace_id`: "uuid-v4-string" [cite: 19]
-* [cite_start]`developer_id`: "user-string-or-uuid" [cite: 20]
-* [cite_start]`task_id`: "bug-ticket-id-string" [cite: 21]
-* [cite_start]`task_description`: "The full text of the bug report." [cite: 22]
-* [cite_start]`repo_url`: "https://github.com/example/repo.git" [cite: 23]
-* [cite_start]`repo_commit_hash`: "sha-string-at-start" [cite: 24]
-* [cite_start]`start_timestamp`: "2025-10-29 T16:00:00Z" [cite: 25]
-* [cite_start]`end_timestamp`: "2025-10-29 T18:00:00Z" [cite: 26]
-* [cite_start]`Final_code_diff`: (Required to test the result of the entire process) [cite: 27, 67]
-* [cite_start]`qa_results`: null (Can be filled when the AI judge gives it a ranking) [cite: 66, 68]
-* [cite_start]`events`: \[ ... \] (Array containing all chronological events) [cite: 28, 69]
 
-### Events Array Structure
-
-[cite_start]The array includes each specific event (reasoning thought, command executed, etc.) and must be sorted in chronological order[cite: 69, 70]. Each event includes:
-
-* [cite_start]`event_id`: "uuid-v4-string" [cite: 30]
-* [cite_start]`timestamp`: (To display when the action took place) [cite: 31, 72]
-* [cite_start]`event_type`: (Dictates the type of event, e.g., `thought_log`, `file_edit`, `command_run`) [cite: 32, 73]
-* [cite_start]`payload`: (Specific data needed for the event type) [cite: 33, 75]
-
-| Event Type | Key Payload Fields |
-| :--- | :--- |
-| `thought_log` | [cite_start]`thought_text`: "..." [cite: 32, 34] |
-| `file_edit` | [cite_start]`file_path`: "example/path", `content_diff`: "..." [cite: 41, 44, 45] |
-| `command_run` | [cite_start]`command_text`: "example command", `working_directory`: "example/dir", `exit_code`: 1, `stdout`: "...", `stderr`: "..." [cite: 48, 51, 52, 53, 54, 55] |
-
----
-
-## ✨ Nice-to-Haves (Future Work)
-
-These items add significant complexity and are explicitly out of scope for the MVP:
-
-* [cite_start]**Incremental Ingestion:** Handling event ordering and session management for traces ingested event-by-event, rather than as a final JSON upload[cite: 107].
-* [cite_start]**Advanced AI Rubric:** Implementing a more advanced system with greater detail (e.g., Clarity, Debugging Skills, etc.) instead of a simple numeric score[cite: 108].
-* **Authentication:** Implementing an authentication mechanism to protect the API keys and data pipeline.

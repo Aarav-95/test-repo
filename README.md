@@ -78,11 +78,11 @@ Root Object: Includes metadata and information about the entire session that hel
 Events Array: Since this is time-series data, the data needs to be sorted in chronological order, which is best displayed in an array. The array includes each specific event, whether that is a preliminary reasoning thought, a command executed, etc.
 
 Inside Event:
-   Timestamp: to display when a certain action has taken place, allowing for chronological order
-   Event Type: dictates the type of event that is occurring at that moment
-      - This is important since each event will have a different set of schema needing to be filled
-   Payload: depending on the type, each payload will include the specific data that we need to capture
-      - Ex. stdin, stdout, stderr for command runs
+- Timestamp: to display when a certain action has taken place, allowing for chronological order
+- Event Type: dictates the type of event that is occurring at that moment
+    - This is important since each event will have a different set of schema needing to be filled
+- Payload: depending on the type, each payload will include the specific data that we need to capture
+  - Ex. stdin, stdout, stderr for command runs
 
 ## High-Level Technical Plan:
 

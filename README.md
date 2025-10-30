@@ -1,4 +1,4 @@
-### Project Plan
+# Project Plan
 
 ## Questions:
 1. How is a developer’s chain of thought reasoning captured? Does the developer have a separate notes tab to log their reasoning, or do we infer it from any issues they may be encountering?
@@ -18,7 +18,7 @@
 
 4. The AI judge values the methodology greater than speed so that the entire debugging process can be properly captured, providing more human-like data to train the agent.
 
-# JSON Schema:
+### JSON Schema:
 ```
 {
   "trace_id": "uuid-v4-string",
@@ -71,7 +71,7 @@
   "qa_results": null
 }
 ```
-# Rationale: 
+### Rationale: 
 
 Root Object: Includes metadata and information about the entire session that helps differentiate between sessions, such as timestamp start and end, task description, GitHub link, etc. It also includes a qa results section that can be filled when the AI judge gives it a ranking
 
@@ -86,7 +86,7 @@ Inside Event:
 
 ## High-Level Technical Plan:
 
-# Architecture:
+### Architecture:
 
 Ingestion API: One POST endpoint will be exposed, in which the client will send the entire JSON to it
 
@@ -102,7 +102,7 @@ QA Judge:
 - It runs the AI quality judge by taking in all the developers’ thoughts and sending it through to an LLM API
 - GPT-5-nano can be used for this since we do not need a large amount of reasoning for this task, basic summarization, and understanding of the text is enough and will allow for cost savings
 
-# Tech Stack:
+## Tech Stack:
 Language: Python – Standard for AI and data processing, supports many useful libraries
 API: Fast API – A high-performance framework that is easy to use and has good data validation
 Database: PostgreSQL – JSONB support allows us to store half-structured traces while also having lots of SQL queries at our disposal
@@ -110,14 +110,14 @@ Queue: Redis – Redis is very lightweight and fast for delivering messages. We 
 
 ## Scope & Trade-Offs:
 
-# MVP:
+### MVP:
 - Upload the entire JSON trace at the end
 - Trace will be saved to a PostgreSQL JSONB column
 - The worker will call Gemini 2.5 Flash with a simple prompt based on our "methodology over speed" assumption and store a numeric score
 - A docker-compose.yml that boots the API, worker, Postgres, and Redis with a single docker-compose up command.
 - The README.md will contain this plan and clear run instructions, including one end-to-end example to demonstrate the entire flow
 
-# Nice-to-Haves:
+### Nice-to-Haves:
 - Incremental Ingestion: This adds significant complexity to the MVP, as we would need to handle event ordering and session management
 - Advanced AI Rubric: Instead of a simple score, a more advanced system could include a rubric with greater detail (Ex. Clarity, Debugging Skills, etc.)
 - Authentication: The API will be open for anyone to use in this prototype, but ideally, an authentication mechanism would be implemented so that a random person cannot access the API keys and data pipeline

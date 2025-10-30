@@ -121,6 +121,6 @@ QA Judge:
 - Incremental Ingestion: This adds significant complexity to the MVP, as we would need to handle event ordering and session management
 - Advanced AI Rubric: Instead of a simple score, a more advanced system could include a rubric with greater detail (Ex. Clarity, Debugging Skills, etc.)
 - Authentication: The API will be open for anyone to use in this prototype, but ideally, an authentication mechanism would be implemented so that a random person cannot access the API keys and data pipeline
-- Git Actions Testing: Cloning the repo and dockerizing a test suite would be ideal; however, with the time frame given, it is not necessary, as the most important part of the data is its quality of the thought process
+- Git Repo Testing: Cloning the repo and dockerizing a test suite would be ideal; however, with the time frame given, it is not necessary, as the most important part of the data is its quality of the thought process
 
 

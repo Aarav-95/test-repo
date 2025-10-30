@@ -123,4 +123,120 @@ QA Judge:
 - Authentication: The API will be open for anyone to use in this prototype, but ideally, an authentication mechanism would be implemented so that a random person cannot access the API keys and data pipeline
 - Git Repo Testing: Cloning the repo and dockerizing a test suite would be ideal; however, with the time frame given, it is not necessary, as the most important part of the data is its quality of the thought process
 
+# Running the Service
 
+## Prerequisites
+- Docker Desktop (or Docker Engine + Docker Compose)
+- An OpenAI API Key (for the AI Judge, which uses gpt-5-nano)
+- A tool to make API requests (like curl or Postman)
+
+## 1. Setup
+Clone the repository (if you haven't already):
+```
+git clone [your-repo-url]
+cd [your-project-directory]
+```
+Create the .env file: In the root of your project, create a file named .env. This file will store your database credentials and API key.
+
+Copy and paste the following template into your .env file, replacing sk-your-key-here with your actual OpenAI API key.
+```
+POSTGRES_USER=myuser
+POSTGRES_PASSWORD=mypassword
+POSTGRES_DB=telemetry_db
+DATABASE_URL=postgresql://myuser:mypassword@db:5432/telemetry_db
+OPENAI_API_KEY=sk-your-key-here
+```
+
+## 2. Run the Application
+Build and run all the services (API, Worker, Database, Queue) using Docker Compose:
+
+```
+docker-compose up --build
+```
+
+## 3. Test the Pipeline
+Once the services are running, you can test the entire flow.
+
+### Step 1: Create an Example Trace
+Create a file named example_trace.json in the same directory. This is the data you will send to the API.
+```
+{
+    "trace_id": "test-trace-001",
+    "task_description": "The 'add' function is returning incorrect results.",
+    "repo_url": "https://github.com/example/repo.git",
+    "repo_commit_hash": "3d3a00af7be87c7fdbaccdaab692a07de02159f1",
+    "final_code_diff": "--- a/main.py\n+++ b/main.py\n@@ -1,3 +1,3 @@\n def add(a, b):\n-    return a - b\n+    return a + b",
+    "events": [
+        {
+            "event_id": "e1",
+            "timestamp_iso": "2025-10-29T16:05:10Z",
+            "event_type": "thought_log",
+            "payload": {"thought_text": "Bug report says add is wrong. I'll run the test."}
+        },
+        {
+            "event_id": "e2",
+            "timestamp_iso": "2025-10-29T16:05:30Z",
+            "event_type": "command_run",
+            "payload": {
+                "command_text": "pytest",
+                "exit_code": 1,
+                "stderr": "AssertionError: assert 0 == 4"
+            }
+        },
+        {
+            "event_id": "e3",
+            "timestamp_iso": "2025-10-29T16:05:45Z",
+            "event_type": "thought_log",
+            "payload": {"thought_text": "Yep, test failed. The operator must be wrong. I'll change it from '-' to '+'."}
+        }
+    ]
+}
+```
+### Step 2: Submit the Trace
+Open a new terminal (leave Docker Compose running in the first one) and run the following curl command:
+
+```
+curl -X POST "http://localhost:8000/v1/trace" \
+-H "Content-Type: application/json" \
+-d @example_trace.json
+```
+You should get an immediate response: 
+```{"message":"Trace accepted and queued for QA","trace_id":"test-trace-001"}```
+
+### Step 3: Check the Results
+Watch your docker-compose up logs. After a few seconds, the worker-1 log will print:
+
+```
+Starting QA pipeline for trace: test-trace-001
+
+Running LLM Judge...
+
+Successfully completed QA for trace: test-trace-001
+```
+Now, use the GET endpoint to retrieve the trace and see the AI's judgment:
+
+```
+curl http://localhost:8000/v1/trace/test-trace-001
+```
+You will see your full trace, and the qa_results field will be updated with the score and critique from gpt-5-nano:
+
+```
+{
+  "trace_id": "test-trace-001",
+  "task_description": "The 'add' function is returning incorrect results.",
+  // ...other fields...
+  "qa_results": {
+    "reasoning_score": 4.5,
+    "reasoning_critique": "The developer correctly identified the failed test and formed a clear, correct hypothesis to fix the bug."
+  }
+}
+```
+
+## 4. Stopping the Application
+
+To stop all services, press Ctrl+C in the docker-compose terminal.
+
+To remove all data (including the database contents), run:
+```
+docker compose-down -v
+```

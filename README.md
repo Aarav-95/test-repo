@@ -103,10 +103,10 @@ QA Judge:
 - GPT-5-nano can be used for this since we do not need a large amount of reasoning for this task, basic summarization, and understanding of the text is enough and will allow for cost savings
 
 ## Tech Stack:
-Language: Python – Standard for AI and data processing, supports many useful libraries
-API: Fast API – A high-performance framework that is easy to use and has good data validation
-Database: PostgreSQL – JSONB support allows us to store half-structured traces while also having lots of SQL queries at our disposal
-Queue: Redis – Redis is very lightweight and fast for delivering messages. We can utilize the RQ library from Python for this
+- Language: Python – Standard for AI and data processing, supports many useful libraries
+- API: Fast API – A high-performance framework that is easy to use and has good data validation
+- Database: PostgreSQL – JSONB support allows us to store half-structured traces while also having lots of SQL queries at our disposal
+- Queue: Redis – Redis is very lightweight and fast for delivering messages. We can utilize the RQ library from Python for this
 
 ## Scope & Trade-Offs:
 
